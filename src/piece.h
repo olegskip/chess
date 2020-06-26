@@ -1,5 +1,5 @@
 #pragma once
-#include <QLabel>
+#include <QPushButton>
 #include <QMouseEvent>
 #include <QVector2D>
 #include <QString>
@@ -21,7 +21,7 @@ enum class PieceType
 	PAWN
 };
 
-class Piece: public QLabel
+class Piece: public QPushButton
 {
 	Q_OBJECT
 
@@ -34,17 +34,18 @@ public:
 
 	void move(QPoint relativePosition);
 	QPoint getRelativePosition() const;
-	bool isFirstMove() const;
+	bool isMoved() const;
 
 signals:
-	void mouseReleaseSignal();
+	void mouseReleaseSignal() const;
+	void moveSignal() const;
 
 private:
 	void mousePressEvent(QMouseEvent *event) override;
 	void mouseMoveEvent(QMouseEvent *event) override;
 	void mouseReleaseEvent(QMouseEvent *event) override;
 
-	bool mIsFirstMove = true;
+	unsigned int moveCount = 0;
 	QPoint relativePosition;
 	QPoint offset;
 //	bool event(QEvent *myEvent);
