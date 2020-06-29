@@ -13,7 +13,8 @@ enum class CellActiveType
 {
 	SELECT,
 	LAST_TURN_CURRENT_CELL,
-	LAST_TURN_PREVIOUS_CELL
+	LAST_TURN_PREVIOUS_CELL,
+	KING_CHECKED
 };
 
 class Cell: public QPushButton
@@ -27,8 +28,8 @@ public:
 	const CellType cellType;
 	void setBackgroundColor(QColor color);
 
-	void active(CellActiveType cellActiveType);
-	void deactive();
+	void activate(CellActiveType cellActiveType);
+	void deactivate();
 
 	bool operator ==(const Cell &secondCell);
 

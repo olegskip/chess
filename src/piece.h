@@ -27,7 +27,6 @@ class Piece: public QPushButton
 
 public:
 	Piece(QWidget *parent, QRect geometry, QPoint _spawnRelativePosition, QString backgroundImage, PlayerColor _pieceOwner, PieceType _pieceType);
-
 	const QPoint spawnRelativePosition;
 	const PlayerColor pieceOwner;
 	const PieceType pieceType;
@@ -35,6 +34,7 @@ public:
 	void move(QPoint relativePosition);
 	QPoint getRelativePosition() const;
 	bool isMoved() const;
+	unsigned int getMoveCount() const;
 
 signals:
 	void mouseReleaseSignal() const;
@@ -48,6 +48,5 @@ private:
 	unsigned int moveCount = 0;
 	QPoint relativePosition;
 	QPoint offset;
-//	bool event(QEvent *myEvent);
 };
 

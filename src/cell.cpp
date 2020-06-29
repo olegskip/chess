@@ -9,10 +9,9 @@ Cell::Cell(QWidget *parent, QRect geometry, QPoint _relativePosition, CellType _
 	setGeometry(geometry);
 	setAutoFillBackground(true);
 	setBackgroundColor(color);
-//	setText(QString::number(relativePosition.x()) + " " + QString::number(relativePosition.y()));
 }
 
-void Cell::active(CellActiveType cellActiveType)
+void Cell::activate(CellActiveType cellActiveType)
 {
 	if(cellActiveType == CellActiveType::SELECT)
 		setBackgroundColor(QColor(250, 200, 100, 150));
@@ -20,9 +19,11 @@ void Cell::active(CellActiveType cellActiveType)
 		setBackgroundColor(QColor(120, 200, 80, 180));
 	else if(cellActiveType == CellActiveType::LAST_TURN_PREVIOUS_CELL)
 		setBackgroundColor(QColor(130, 250, 100, 180));
+	else if(cellActiveType == CellActiveType::KING_CHECKED)
+		setBackgroundColor(QColor(210, 20, 50, 180));
 }
 
-void Cell::deactive()
+void Cell::deactivate()
 {
 	setBackgroundColor(color);
 }
