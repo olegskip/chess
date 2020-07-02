@@ -1,12 +1,13 @@
 #pragma once
-#include <QPushButton>
 #include <QMouseEvent>
+#include <QPushButton>
 #include <QVector2D>
 #include <QString>
 
 
 enum class PlayerColor
 {
+	NONE,
 	WHITE,
 	BLACK
 };
@@ -35,6 +36,8 @@ public:
 	QPoint getRelativePosition() const;
 	bool isMoved() const;
 	unsigned int getMoveCount() const;
+
+	bool isHasCollision = true;
 
 signals:
 	void mouseReleaseSignal() const;

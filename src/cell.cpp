@@ -9,6 +9,7 @@ Cell::Cell(QWidget *parent, QRect geometry, QPoint _relativePosition, CellType _
 	setGeometry(geometry);
 	setAutoFillBackground(true);
 	setBackgroundColor(color);
+	setText(QString::number(relativePosition.x()) + " " + QString::number(relativePosition.y()));
 }
 
 void Cell::activate(CellActiveType cellActiveType)

@@ -50,7 +50,6 @@ MainWindow::MainWindow(QWidget *parent)
 		pieces.push_back(QSharedPointer<Piece>(new Piece(this, cells[x][6]->geometry(), QPoint(x, 6), config::pieces_paths::BLACK_PAWN, PlayerColor::BLACK, PieceType::PAWN)));
 	}
 
-
 	// connects
 	for(auto &vec: cells) {
 		for(QSharedPointer<Cell> cell: vec) {
@@ -71,6 +70,12 @@ MainWindow::MainWindow(QWidget *parent)
 			onPieceClicked(*piece);
 		});
 	}
+
+	victoryLabel.setStandardButtons(QMessageBox::Ok);
+	QFont victoryLabelFont = victoryLabel.font();
+	victoryLabelFont.setPixelSize(20);
+	victoryLabelFont.setFamily("FreeMono Bold");
+	victoryLabel.setFont(victoryLabelFont);
 }
 
 void MainWindow::onPieceMoved(Piece &piece)
@@ -122,7 +127,7 @@ void MainWindow::onCellClicked(Cell &cell)
 	}
 }
 
-bool MainWindow::isWayClear(QPoint startPoint, QPoint endPoint)
+QVector<QPoint> MainWindow::getPointsOnWay(QPoint startPoint, QPoint endPoint)
 {
 	QVector<QPoint> pointsOnWay;
 	if(startPoint.x() == endPoint.x()) {
@@ -136,17 +141,19 @@ bool MainWindow::isWayClear(QPoint startPoint, QPoint endPoint)
 	}
 	else if(std::abs(endPoint.x() - startPoint.x()) == std::abs(endPoint.y() - startPoint.y())){
 		QVector<int> vecX = getFilledVector(startPoint.x(), endPoint.x());
-		QVector<int> vecY = getFilledVector( startPoint.y(), endPoint.y());
+		QVector<int> vecY = getFilledVector(startPoint.y(), endPoint.y());
 		for(int i = 0; i < int(vecX.size()); ++i)
 			pointsOnWay.push_back(QPoint(vecX[i], vecY[i]));
 	}
 
-	for(QPoint item: pointsOnWay) {
-		if(!isCellEmpty(*cells[item.x()][item.y()]))
-			return false;
-	}
+	return pointsOnWay;
+}
 
-	return true;
+bool MainWindow::isWayClear(QVector<QPoint> pointsOnWay)
+{
+	return std::all_of(pointsOnWay.begin(), pointsOnWay.end(), [this](const QPoint &point) {
+		return isCellEmpty(*getCell(point));
+	});
 }
 
 QVector<int> MainWindow::getFilledVector(int from, int to)
@@ -195,14 +202,15 @@ QSharedPointer<Cell> &MainWindow::findNearestCell(QPoint pos)
 bool MainWindow::attemptToMove(Piece &piece, const Cell &cell)
 {
 	bool _isCellEmpty = isCellEmpty(cell);
-	if(piece.pieceOwner == currentTurn && ((_isCellEmpty && isMovePossible(piece, cell)) || isCanCapture(piece, cell))) {
+	QSharedPointer<Piece> pieceDefender;
+	if(!_isCellEmpty)
+		pieceDefender = getPiece(cell.relativePosition);
+	if(piece.pieceOwner == currentTurn && ((_isCellEmpty && isMovePossible(piece, cell)) ||
+										   (!_isCellEmpty && piece.pieceOwner != pieceDefender->pieceOwner && isCanCapture(piece, cell)))) {
 		QSharedPointer<Cell> cellPtr = getCell(QPoint(cell.relativePosition.x(), cell.relativePosition.y()));
 
 		// if the move is possible move the piece
 		QPoint oldPieceRelPos = piece.getRelativePosition();
-		QSharedPointer<Piece> pieceDefender;
-		if(!_isCellEmpty)
-			pieceDefender = getPiece(cell.relativePosition);
 
 		piece.move(cell.relativePosition);
 
@@ -213,11 +221,11 @@ bool MainWindow::attemptToMove(Piece &piece, const Cell &cell)
 		}
 		for(auto &king: kings) {
 			if(king) {
-				if(isCellChecked(*cells[king->getRelativePosition().x()][king->getRelativePosition().y()], king->pieceOwner, pieceDefender)) {
-					checkedCell = cells[king->getRelativePosition().x()][king->getRelativePosition().y()];
-					checkedCell->activate(CellActiveType::KING_CHECKED);
+				if(getCellAtacker(*cells[king->getRelativePosition().x()][king->getRelativePosition().y()], king->pieceOwner, pieceDefender)) {
 					if(king->pieceOwner == piece.pieceOwner) {
 						piece.move(oldPieceRelPos);
+						checkedCell = cells[king->getRelativePosition().x()][king->getRelativePosition().y()];
+						checkedCell->activate(CellActiveType::KING_CHECKED);
 						return false;
 					}
 				}
@@ -226,6 +234,14 @@ bool MainWindow::attemptToMove(Piece &piece, const Cell &cell)
 
 		if(pieceDefender)
 			removePiece(*pieceDefender);
+
+		const PlayerColor _isCheckmate = isCheckmate();
+		if(_isCheckmate != PlayerColor::NONE) {
+			const QString winnerName = _isCheckmate == PlayerColor::WHITE ? "Black": "White";
+//			const QString looserName = _isCheckmate == PlayerColor::WHITE ? "White": "Black";
+			victoryLabel.setInformativeText(QString("<p style='text-align: center;'>Are ya winning son?<\p>\n<p style='text-align: center;'> %1 won!<\p>").arg(winnerName));
+			victoryLabel.show();
+		}
 
 		if(cellPtr)
 			highlightLastTurn(cells[oldPieceRelPos.x()][oldPieceRelPos.y()], cellPtr);
@@ -242,13 +258,13 @@ bool MainWindow::attemptToMove(Piece &piece, const Cell &cell)
 	return false;
 }
 
-bool MainWindow::isMovePossible(const Piece &piece, const Cell &cell)
+bool MainWindow::isMovePossible(Piece &piece, const Cell &cell)
 {
 	const QPoint piece1RelativePos = piece.getRelativePosition();
 	const QPoint cellRelativePos = cell.relativePosition;
 
-	if(!isWayClear(piece.getRelativePosition(), cellRelativePos))
-		return false;
+	if(!isWayClear(getPointsOnWay(piece.getRelativePosition(), cellRelativePos)))
+			return false;
 
 	auto checkLinearMove = [piece1RelativePos, cellRelativePos]()
 	{
@@ -273,15 +289,24 @@ bool MainWindow::isMovePossible(const Piece &piece, const Cell &cell)
 //			QSharedPointer<Piece> rook;
 //			if(cellRelativePos.x() == 6) {
 //				rook = getPiece(QPoint(7, cellRelativePos.y()));
-//				if(rook && !rook->isMoved())
-//					rook->move(QPoint(6, cellRelativePos.y()));
+//				if(rook) {
+//					bool isCanCastle = true;
+//					for(auto item: getFilledVector(piece.getRelativePosition().x, 7)) {
+//						if(getCellAtacker(cells[item][piece.getRelativePosition().y()])) {
+//							rook->move(QPoint(5, cellRelativePos.y()));
+//							return true;
+//						}
+//					}
+//				}
 //				else
 //					return false;
 //			}
 //			else if(cellRelativePos.x() == 2) {
 //				rook = getPiece(QPoint(0, cellRelativePos.y()));
-//				if(rook && !rook->isMoved())
+//				if(rook && !rook->isMoved()) {
 //					rook->move(QPoint(3, cellRelativePos.y()));
+//					return true;
+//				}
 //				else
 //					return false;
 //			}
@@ -318,24 +343,18 @@ bool MainWindow::isMovePossible(const Piece &piece, const Cell &cell)
 	return false;
 }
 
-bool MainWindow::isCanCapture(const Piece &pieceAtacker, const Cell &cell)
+bool MainWindow::isCanCapture(Piece &pieceAtacker, const Cell &cell)
 {
-	if(!isCellEmpty(cell)) {
 		const QPoint pieceAtackerRelativePos = pieceAtacker.getRelativePosition();
 		const QPoint cellRelativePos = cell.relativePosition;
 		const Piece &pieceDefender = **std::find_if(pieces.begin(), pieces.end(), [cellRelativePos]
 												(const QSharedPointer<Piece> &_piece){return cellRelativePos == _piece->getRelativePosition();});
 
-		if(pieceAtacker.pieceOwner == pieceDefender.pieceOwner)
-			return false;
-
-		const QPoint pieceDefenderRelativePos = pieceDefender.getRelativePosition();
-
 		// only the pawn doesn't capture like move
 		if(pieceAtacker.pieceType == PieceType::PAWN) {
-			if((pieceAtackerRelativePos.x() - 1 == pieceDefenderRelativePos.x() || pieceAtackerRelativePos.x() + 1 == pieceDefenderRelativePos.x()) &&
-					((pieceAtacker.pieceOwner == PlayerColor::WHITE && pieceAtackerRelativePos.y() + 1 == pieceDefenderRelativePos.y()) ||
-					(pieceAtacker.pieceOwner == PlayerColor::BLACK && pieceAtackerRelativePos.y() - 1 == pieceDefenderRelativePos.y()))) {
+			if((pieceAtackerRelativePos.x() - 1 == cellRelativePos.x() || pieceAtackerRelativePos.x() + 1 == cellRelativePos.x()) &&
+					((pieceAtacker.pieceOwner == PlayerColor::WHITE && pieceAtackerRelativePos.y() + 1 == cellRelativePos.y()) ||
+					(pieceAtacker.pieceOwner == PlayerColor::BLACK && pieceAtackerRelativePos.y() - 1 == cellRelativePos.y()))) {
 				return true;
 			}
 			else
@@ -343,9 +362,6 @@ bool MainWindow::isCanCapture(const Piece &pieceAtacker, const Cell &cell)
 		}
 		else
 			return isMovePossible(pieceAtacker, cell);
-	}
-
-	return false;
 }
 
 bool MainWindow::isCellEmpty(const Cell &cell) const
@@ -353,9 +369,68 @@ bool MainWindow::isCellEmpty(const Cell &cell) const
 	const auto cellRelativePosition = cell.relativePosition;
 	const QSharedPointer<Piece> *result = std::find_if(pieces.begin(), pieces.end(), [cellRelativePosition](const QSharedPointer<Piece> &piece)
 	{
-		return cellRelativePosition == piece->getRelativePosition();
+		return piece->isHasCollision && cellRelativePosition == piece->getRelativePosition();
 	});
 	return result == pieces.end();
+}
+
+PlayerColor MainWindow::isCheckmate()
+{
+	const auto kings = getPieces(PieceType::KING);
+
+	for(QSharedPointer<Piece> king: kings) {
+		if(getCellAtacker(*cells[king->getRelativePosition().x()][king->getRelativePosition().y()], king->pieceOwner)) {
+			for(auto &vec: cells) {
+				for(auto &cell: vec) {
+					if(isCellEmpty(*cell)) {
+						// the king can just run away
+						king->isHasCollision = false;
+						if(!getCellAtacker(*cell, king->pieceOwner, king) && isMovePossible(*king, *cell)) {
+							king->isHasCollision = true;
+							return PlayerColor::NONE;
+						}
+						king->isHasCollision = true;
+					}
+					// if the king can capture the atacker
+					if(!getCellAtacker(*cell, king->pieceOwner) && !isCellEmpty(*cell) &&
+							king->pieceOwner != getPiece(cell->relativePosition)->pieceOwner && isCanCapture(*king, *cell))
+						return PlayerColor::NONE;
+				}
+			}
+			// if the king has nothing to do, maybe the others can help
+
+			QSharedPointer<Piece> atacker = getCellAtacker(*getCell(king->getRelativePosition()),
+					king->pieceOwner);
+			QVector<QPoint> pointsOnWay = getPointsOnWay(atacker->getRelativePosition(), king->getRelativePosition());
+			for(auto &piece: pieces) {
+				// only the allies of the king can help
+				if(piece->pieceOwner != king->pieceOwner) continue;
+				// There are conditions above when the king can save by himself
+				if(piece->pieceType == PieceType::KING) continue;
+
+				// if the others can capture the atacker
+				if(isCanCapture(*piece, *getCell(atacker->getRelativePosition())) &&
+						getCellAtacker(*getCell(atacker->getRelativePosition()), king->pieceOwner, atacker))
+					return PlayerColor::NONE;
+
+				// or somebody can hide the king
+				for(QPoint pointOnWay: pointsOnWay) {
+					if(isMovePossible(*piece, *getCell(pointOnWay))) {
+						QPoint oldPosition = piece->getRelativePosition();
+						piece->move(pointOnWay);
+						auto isCellChecked = getCellAtacker(*getCell(king->getRelativePosition()), king->pieceOwner);
+						piece->move(oldPosition);
+
+						if(!isCellChecked)
+							return PlayerColor::NONE;
+					}
+				}
+			}
+			return king->pieceOwner;
+		}
+	}
+
+	return PlayerColor::NONE;
 }
 
 void MainWindow::removePiece(const Piece &pieceToRemove)
@@ -409,13 +484,16 @@ QSharedPointer<Cell> MainWindow::getCell(QPoint relativePosition)
 	return QSharedPointer<Cell>();
 }
 
-bool MainWindow::isCellChecked(const Cell &cell, PlayerColor kingColor, const QSharedPointer<Piece> &checkWithout)
+QSharedPointer<Piece> MainWindow::getCellAtacker(const Cell &cell, PlayerColor kingColor, const QSharedPointer<Piece> &checkWithout)
 {
+	QSharedPointer<Piece> pieceOnCell = getPiece(cell.relativePosition);
+
 	for(auto &piece: pieces) {
-		if(piece != checkWithout && piece->pieceOwner != kingColor && isCanCapture(*piece, cell))
-			return true;
+		if(piece != checkWithout && piece != pieceOnCell && piece->pieceOwner != kingColor && isCanCapture(*piece, cell))
+			return piece;
 	}
-	return false;
+
+	return QSharedPointer<Piece>();
 }
 
 MainWindow::~MainWindow()
