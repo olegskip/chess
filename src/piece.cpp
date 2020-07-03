@@ -7,9 +7,6 @@ Piece::Piece(QWidget *parent, QRect geometry, QPoint _spawnRelativePosition, QSt
 	setGeometry(geometry);
 	setStyleSheet(QString("QPushButton{border: none; background-color:transparent; border-image: url(%1);}").arg(backgroundImage));
 	relativePosition = spawnRelativePosition;
-	auto curFont = font();
-	curFont.setPixelSize(30);
-	setFont(curFont);
 }
 
 void Piece::move(QPoint relativePosition)

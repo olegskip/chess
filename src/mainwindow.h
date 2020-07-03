@@ -10,9 +10,10 @@
 #include <QMessageBox>
 #include <functional>
 #include <algorithm>
-#include <numeric>
 #include <QPointer>
+#include <numeric>
 #include <QVector>
+#include <QTimer>
 #include <QtMath>
 #include <QPair>
 
@@ -62,11 +63,16 @@ private:
 	QSharedPointer<Piece> getCellAtacker(const Cell &cell, PlayerColor kingColor,
 										 const QSharedPointer<Piece> &checkWithout = QSharedPointer<Piece>());
 
+	void restart();
+
 	unsigned int currentTurnCount = 1;
 	PlayerColor currentTurn = PlayerColor::WHITE;
 
 	QMessageBox victoryLabel;
+//	QPointer<QLayout> hBoxLayout;
+	QPointer<QWidget> newCentralWidget;
 
 	Ui::MainWindow *ui;
+	QLabel *label;
 };
 #endif // MAINWINDOW_H

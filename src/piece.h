@@ -21,13 +21,14 @@ enum class PieceType
 	KNIGHT,
 	PAWN
 };
-
+#include <QDebug>
 class Piece: public QPushButton
 {
 	Q_OBJECT
 
 public:
 	Piece(QWidget *parent, QRect geometry, QPoint _spawnRelativePosition, QString backgroundImage, PlayerColor _pieceOwner, PieceType _pieceType);
+//	~Piece() {qDebug() << "destructor";}
 	const QPoint spawnRelativePosition;
 	const PlayerColor pieceOwner;
 	const PieceType pieceType;
