@@ -16,11 +16,7 @@
 #include <QTimer>
 #include <QtMath>
 #include <QPair>
-
-
-QT_BEGIN_NAMESPACE
-namespace Ui { class MainWindow; }
-QT_END_NAMESPACE
+#include <array>
 
 
 class MainWindow : public QMainWindow
@@ -43,6 +39,8 @@ private:
 	QSharedPointer<Cell> checkedCell;
 	QVector<QSharedPointer<Piece>> pieces;
 
+	bool addPiece(QPoint relativePosition, PlayerColor color, PieceType pieceType);
+
 	QSharedPointer<Cell> &findNearestCell(QPoint pos);
 	QVector<QPoint> getPointsOnWay(QPoint startPoint, QPoint endPoint);
 	bool isWayClear(QVector<QPoint> pointsOnWay);
@@ -52,6 +50,7 @@ private:
 	bool attemptToMove(Piece &piece, const Cell &cell);
 	bool isMovePossible(Piece &piece, const Cell &cell);
 	bool isCanCapture(Piece &pieceAtacker, const Cell &cell);
+	QSharedPointer<Piece> enPassant(Piece &pieceAtacker, const Cell &cell);
 	bool isCellEmpty(const Cell &cell) const;
 	PlayerColor isCheckmate();
 
@@ -65,14 +64,12 @@ private:
 
 	void restart();
 
-	unsigned int currentTurnCount = 1;
+	int currentTurnCount = 1;
 	PlayerColor currentTurn = PlayerColor::WHITE;
 
 	QMessageBox victoryLabel;
-//	QPointer<QLayout> hBoxLayout;
 	QPointer<QWidget> newCentralWidget;
 
-	Ui::MainWindow *ui;
 	QLabel *label;
 };
 #endif // MAINWINDOW_H

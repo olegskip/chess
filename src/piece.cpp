@@ -1,6 +1,7 @@
 #include "piece.h"
 
-Piece::Piece(QWidget *parent, QRect geometry, QPoint _spawnRelativePosition, QString backgroundImage, PlayerColor _pieceOwner, PieceType _pieceType):
+Piece::Piece(QWidget *parent, QRect geometry, QPoint _spawnRelativePosition, const QString &backgroundImage,
+			 PlayerColor _pieceOwner, PieceType _pieceType):
 	QPushButton(parent), spawnRelativePosition(_spawnRelativePosition), pieceOwner(_pieceOwner), pieceType(_pieceType)
 {
 	setAcceptDrops(true);
@@ -9,13 +10,15 @@ Piece::Piece(QWidget *parent, QRect geometry, QPoint _spawnRelativePosition, QSt
 	relativePosition = spawnRelativePosition;
 }
 
-void Piece::move(QPoint relativePosition)
+void Piece::move(QPoint relativePosition, int currentMove)
 {
-	this->relativePosition = relativePosition;
+	if(currentMove != -1)
+		lastMove = currentMove;
 	if(this->getRelativePosition() != relativePosition)
 		moveCount++;
+	this->relativePosition = relativePosition;
 
-	QPushButton::move(QPoint(relativePosition.x() * size().width(), 700 - relativePosition.y() * size().height()));
+	QPushButton::move(QPoint(relativePosition.x() * size().width(), 7 * height() - relativePosition.y() * size().height()));
 }
 
 QPoint Piece::getRelativePosition() const
@@ -26,6 +29,11 @@ QPoint Piece::getRelativePosition() const
 bool Piece::isMoved() const
 {
 	return moveCount > 0;
+}
+
+int Piece::getLastMove() const
+{
+	return lastMove;
 }
 
 unsigned int Piece::getMoveCount() const
