@@ -11,10 +11,15 @@ MainWindow::MainWindow(QWidget *parent)
 	victoryLabel.setStandardButtons(QMessageBox::Ok | QMessageBox::Cancel);
 	victoryLabel.button(QMessageBox::Ok)->setText("Restart");
 	victoryLabel.button(QMessageBox::Cancel)->setText("Quit");
-	QFont victoryLabelFont = victoryLabel.font();
-	victoryLabelFont.setPixelSize(20);
-	victoryLabelFont.setFamily("FreeMono Bold");
+	QFont victoryLabelFont = victoryLabel.buttons().front()->font();
+	victoryLabelFont.setPixelSize(25);
+	for(auto &button: victoryLabel.buttons())
+		button->setFont(victoryLabelFont);
+	victoryLabelFont = victoryLabel.font();
+	victoryLabelFont.setFamily("Anton");
+	victoryLabelFont.setPixelSize(40);
 	victoryLabel.setFont(victoryLabelFont);
+	victoryLabel.setStyleSheet("background-color: white;");
 	connect(victoryLabel.button(QMessageBox::Ok), &QAbstractButton::clicked, this, [this]()
 	{
 		restart();
@@ -225,10 +230,12 @@ bool MainWindow::attemptToMove(Piece &piece, const Cell &cell)
 		}
 
 		const PlayerColor _isCheckmate = isCheckmate();
-		if(_isCheckmate != PlayerColor::NONE) {
-			const QString winnerName = _isCheckmate == PlayerColor::WHITE ? "Black": "White";
-			victoryLabel.setInformativeText(QString("<p style='text-align: center;'>Are ya winning son?</p>\n<p style='text-align: center;'> %1 won!</p>").arg(winnerName));
-			victoryLabel.show();
+		if(_isCheckmate != PlayerColor::NONE)
+			showVictoryLabel(_isCheckmate);
+		else {
+			const bool _isStalemate = isStalemate();
+			if(_isStalemate)
+				showVictoryLabel(PlayerColor::NONE);
 		}
 
 		return true;
@@ -453,6 +460,37 @@ PlayerColor MainWindow::isCheckmate()
 	return PlayerColor::NONE;
 }
 
+bool MainWindow::isStalemate()
+{
+	// we check is checkmate outside the function
+	QPair<bool /* isStalemateWhite */, bool /* isStalemateBlack */> _isStalemate = {true, true};
+
+	// and the others or the king can move
+	for(auto &vec: cells) {
+		for(auto &cell: vec) {
+			for(auto &piece: pieces) {
+				if((piece->pieceOwner == PlayerColor::WHITE  && !_isStalemate.first) ||
+						(piece->pieceOwner == PlayerColor::BLACK  && !_isStalemate.second))
+					continue;
+				bool _isCellEmpty = isCellEmpty(*cell);
+				if(piece->getRelativePosition() != cell->relativePosition &&
+						((_isCellEmpty && (isMovePossible(*piece, *cell) || enPassant(*piece, *cell))) ||
+						(!_isCellEmpty && isCanCapture(*piece, *cell))) &&
+						((piece->pieceType == PieceType::KING && !getCellAtacker(*cell, piece->pieceOwner)) ||
+						 (piece->pieceType != PieceType::KING && !getCellAtacker(*getCell(getPiece(piece->pieceOwner, PieceType::KING)->getRelativePosition()),
+																				 piece->pieceOwner, piece, cell->relativePosition)))) {
+					if(piece->pieceOwner == PlayerColor::WHITE)
+						_isStalemate.first = false;
+					else
+						_isStalemate.second = false;
+				}
+			}
+		}
+	}
+
+	return _isStalemate.first || _isStalemate.second;
+}
+
 void MainWindow::removePiece(const Piece &pieceToRemove)
 {
 	const auto pieceToRemoveRelativePos = pieceToRemove.getRelativePosition();
@@ -473,6 +511,18 @@ QSharedPointer<Piece> MainWindow::getPiece(QPoint relativePosition)
 {
 	auto findResult = std::find_if(pieces.begin(), pieces.end(), [relativePosition](QSharedPointer<Piece> &piece){
 		return piece->getRelativePosition() == relativePosition;
+	});
+
+	if(findResult != pieces.end())
+		return *findResult;
+	else
+		return QSharedPointer<Piece>();
+}
+
+QSharedPointer<Piece> MainWindow::getPiece(PlayerColor color, PieceType pieceType)
+{
+	auto findResult = std::find_if(pieces.begin(), pieces.end(), [color, pieceType](QSharedPointer<Piece> &piece){
+		return piece->pieceOwner == color && piece->pieceType == pieceType;
 	});
 
 	if(findResult != pieces.end())
@@ -504,17 +554,28 @@ QSharedPointer<Cell> MainWindow::getCell(QPoint relativePosition)
 	return QSharedPointer<Cell>();
 }
 
-QSharedPointer<Piece> MainWindow::getCellAtacker(const Cell &cell, PlayerColor kingColor, const QSharedPointer<Piece> &checkWithout)
+QSharedPointer<Piece> MainWindow::getCellAtacker(const Cell &cell, PlayerColor kingColor, const QSharedPointer<Piece> &checkWithout, QPoint newPosition)
 {
 	QSharedPointer<Piece> pieceOnCell = getPiece(cell.relativePosition);
-
-	for(auto &piece: pieces) {
-		if(piece != checkWithout && piece != pieceOnCell && piece->pieceOwner != kingColor &&
-				(isCanCapture(*piece, cell)))
-			return piece;
+	bool isCheckWithout = true;
+	QPoint oldPosition = QPoint(-1, -1);
+	if(checkWithout && newPosition != QPoint(-1, -1)) {
+		isCheckWithout = false;
+		oldPosition = checkWithout->getRelativePosition();
+		checkWithout->move(newPosition);
 	}
 
-	return QSharedPointer<Piece>();
+	QSharedPointer<Piece> output;
+	for(auto &piece: pieces) {
+		if((!isCheckWithout || piece != checkWithout) && piece != pieceOnCell && piece->pieceOwner != kingColor &&
+				(isCanCapture(*piece, cell)))
+			output = piece;
+	}
+
+	if(checkWithout && oldPosition != QPoint(-1, -1))
+		checkWithout->move(oldPosition);
+
+	return output;
 }
 
 
@@ -565,6 +626,7 @@ void MainWindow::restart()
 	for(QSharedPointer<Piece> &piece: pieces)
 		piece->disconnect();
 	pieces.clear();
+
 	// fill the chessboard
 	addPiece(QPoint(4, 0), PlayerColor::WHITE, PieceType::KING);
 	addPiece(QPoint(4, 7), PlayerColor::BLACK, PieceType::KING);
@@ -602,6 +664,27 @@ void MainWindow::restart()
 			onPieceClicked(*piece);
 		});
 	}
+}
+
+void MainWindow::showVictoryLabel(PlayerColor looserColor)
+{
+	const QString winnerName = [](PlayerColor playerColor)
+	{
+		if(playerColor == PlayerColor::WHITE)
+			return "Black";
+		else if(playerColor == PlayerColor::BLACK)
+			return "White";
+		else if(playerColor == PlayerColor::NONE)
+			return "No one";
+
+		return "404";
+	}(looserColor);
+	victoryLabel.setText(QString("<p style='text-align: center;'>Are ya winning son?</p>"
+											"<p style='text-align: center;'><img src=%1></p>"
+											 "<p style='text-align: center;'>%2 is winning dad.</p>").arg("\":/victory_label.png\"", winnerName));
+
+	victoryLabel.show();
+	victoryLabel.move(mapToGlobal(QPoint(x() + width() / 2 - victoryLabel.width() / 2, y() + height() / 2 - victoryLabel.height() / 2)));
 }
 
 MainWindow::~MainWindow()

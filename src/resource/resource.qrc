@@ -12,5 +12,6 @@
         <file>white_pieces/queen.png</file>
         <file>black_pieces/knight.png</file>
         <file>white_pieces/knight.png</file>
+        <file>victory_label.png</file>
     </qresource>
 </RCC>

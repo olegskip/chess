@@ -33,7 +33,7 @@ public:
 	const PlayerColor pieceOwner;
 	const PieceType pieceType;
 
-	void move(QPoint relativePosition, int currentMove);
+	void move(QPoint relativePosition, int currentMove = -1);
 	QPoint getRelativePosition() const;
 	bool isMoved() const;
 	int getLastMove() const;

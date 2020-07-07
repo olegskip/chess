@@ -53,14 +53,16 @@ private:
 	QSharedPointer<Piece> enPassant(Piece &pieceAtacker, const Cell &cell);
 	bool isCellEmpty(const Cell &cell) const;
 	PlayerColor isCheckmate();
+	bool isStalemate();
 
 	void removePiece(const Piece &pieceToRemove);
 	QSharedPointer<Piece> getPiece(QPoint relativePosition);
+	QSharedPointer<Piece> getPiece(PlayerColor color, PieceType pieceType);
 	QVector<QSharedPointer<Piece>> getPieces(PieceType pieceType);
 
 	QSharedPointer<Cell> getCell(QPoint relativePosition);
 	QSharedPointer<Piece> getCellAtacker(const Cell &cell, PlayerColor kingColor,
-										 const QSharedPointer<Piece> &checkWithout = QSharedPointer<Piece>());
+										 const QSharedPointer<Piece> &checkWithout = QSharedPointer<Piece>(), QPoint newPosition = QPoint(-1, -1));
 
 	void restart();
 
@@ -68,6 +70,8 @@ private:
 	PlayerColor currentTurn = PlayerColor::WHITE;
 
 	QMessageBox victoryLabel;
+	void showVictoryLabel(PlayerColor looserColor);
+
 	QPointer<QWidget> newCentralWidget;
 
 	QLabel *label;
