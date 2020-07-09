@@ -1,6 +1,7 @@
 #ifndef MAINWINDOW_H
 #define MAINWINDOW_H
 
+#include "piece_selector_widget.h"
 #include "config.h"
 #include "piece.h"
 #include "cell.h"
@@ -68,12 +69,14 @@ private:
 
 	int currentTurnCount = 1;
 	PlayerColor currentTurn = PlayerColor::WHITE;
+	bool isAllowToMove = true;
 
 	QMessageBox victoryLabel;
 	void showVictoryLabel(PlayerColor looserColor);
 
 	QPointer<QWidget> newCentralWidget;
+	QPointer<QPushButton> restartButton;
 
-	QLabel *label;
+	QPointer<PieceSelectorWidget> pieceSelectorWidget;
 };
 #endif // MAINWINDOW_H

@@ -1,21 +1,28 @@
 #include "piece.h"
+#include "config.h"
 
-Piece::Piece(QWidget *parent, QRect geometry, QPoint _spawnRelativePosition, const QString &backgroundImage,
+Piece::Piece(QWidget *parent, QRect geometry, QPoint _spawnRelativePosition,
 			 PlayerColor _pieceOwner, PieceType _pieceType):
-	QPushButton(parent), spawnRelativePosition(_spawnRelativePosition), pieceOwner(_pieceOwner), pieceType(_pieceType)
+	QPushButton(parent), spawnRelativePosition(_spawnRelativePosition), pieceOwner(_pieceOwner)
 {
+	mPieceType = _pieceType;
 	setAcceptDrops(true);
 	setGeometry(geometry);
-	setStyleSheet(QString("QPushButton{border: none; background-color:transparent; border-image: url(%1);}").arg(backgroundImage));
+	setStyleSheet(QString("QPushButton{border: none; background-color:transparent; border-image: url(%1);}").arg(getImage(pieceType(), pieceOwner)));
 	relativePosition = spawnRelativePosition;
+}
+
+PieceType Piece::pieceType() const
+{
+	return mPieceType;
 }
 
 void Piece::move(QPoint relativePosition, int currentMove)
 {
-	if(currentMove != -1)
+	if(currentMove != -1 && this->getRelativePosition() != relativePosition) {
 		lastMove = currentMove;
-	if(this->getRelativePosition() != relativePosition)
 		moveCount++;
+	}
 	this->relativePosition = relativePosition;
 
 	QPushButton::move(QPoint(relativePosition.x() * size().width(), 7 * height() - relativePosition.y() * size().height()));
@@ -39,6 +46,30 @@ int Piece::getLastMove() const
 unsigned int Piece::getMoveCount() const
 {
 	return moveCount;
+}
+
+QString Piece::getImage(PieceType _pieceType, PlayerColor _color)
+{
+	if(_pieceType == PieceType::KING)
+		return _color == PlayerColor::WHITE ? config::pieces_paths::WHITE_KING: config::pieces_paths::BLACK_KING;
+	else if(_pieceType == PieceType::QUEEN)
+		return _color == PlayerColor::WHITE ? config::pieces_paths::WHITE_QUEEN: config::pieces_paths::BLACK_QUEEN;
+	else if(_pieceType == PieceType::ROOK)
+		return _color == PlayerColor::WHITE ? config::pieces_paths::WHITE_ROOK: config::pieces_paths::BLACK_ROOK;
+	else if(_pieceType == PieceType::BISHOP)
+		return _color == PlayerColor::WHITE ? config::pieces_paths::WHITE_BISHOP: config::pieces_paths::BLACK_BISHOP;
+	else if(_pieceType == PieceType::KNIGHT)
+		return _color == PlayerColor::WHITE ? config::pieces_paths::WHITE_KNIGHT: config::pieces_paths::BLACK_KNIGHT;
+	else if(_pieceType == PieceType::PAWN)
+		return _color == PlayerColor::WHITE ? config::pieces_paths::WHITE_PAWN: config::pieces_paths::BLACK_PAWN;
+
+	return QString();
+}
+
+void Piece::transform(PieceType newPieceType)
+{
+	mPieceType = newPieceType;
+	setStyleSheet(QString("QPushButton{border: none; background-color:transparent; border-image: url(%1);}").arg(getImage(pieceType(), pieceOwner)));
 }
 
 void Piece::mousePressEvent(QMouseEvent* event) // override

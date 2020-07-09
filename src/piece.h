@@ -27,11 +27,11 @@ class Piece: public QPushButton
 	Q_OBJECT
 
 public:
-	Piece(QWidget *parent, QRect geometry, QPoint _spawnRelativePosition, const QString &backgroundImage, PlayerColor _pieceOwner, PieceType _pieceType);
+	Piece(QWidget *parent, QRect geometry, QPoint _spawnRelativePosition, PlayerColor _pieceOwner, PieceType _pieceType);
 
 	const QPoint spawnRelativePosition;
 	const PlayerColor pieceOwner;
-	const PieceType pieceType;
+	PieceType pieceType() const;
 
 	void move(QPoint relativePosition, int currentMove = -1);
 	QPoint getRelativePosition() const;
@@ -40,6 +40,9 @@ public:
 	unsigned int getMoveCount() const;
 
 	bool isHasCollision = true;
+
+	static QString getImage(PieceType _pieceType, PlayerColor _color);
+	void transform(PieceType newPieceType);
 
 signals:
 	void mouseReleaseSignal() const;
@@ -55,5 +58,6 @@ private:
 
 	QPoint relativePosition;
 	QPoint offset;
+	PieceType mPieceType;
 };
 

@@ -18,16 +18,17 @@ DEFINES += QT_DEPRECATED_WARNINGS
 SOURCES += \
     cell.cpp \
     main.cpp \
-    mainwindow.cpp \
+    main_window.cpp \
     piece.cpp \
+    piece_selector_widget.cpp
 
 HEADERS += \
     cell.h \
     config.h \
-    mainwindow.h \
+    main_window.h \
     piece.h \
+    piece_selector_widget.h
 
-FORMS +=
 
 # Default rules for deployment.
 qnx: target.path = /tmp/$${TARGET}/bin

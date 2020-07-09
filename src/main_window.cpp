@@ -1,12 +1,11 @@
-﻿#include "mainwindow.h"
+﻿#include "main_window.h"
 
 MainWindow::MainWindow(QWidget *parent)
 	: QMainWindow(parent)
 {
-	setGeometry(x(), y(), 800, 800);
+	setGeometry(x(), y(), 800, 830);
 	setMinimumSize(size());
 	setMaximumSize(size());
-	restart();
 
 	victoryLabel.setStandardButtons(QMessageBox::Ok | QMessageBox::Cancel);
 	victoryLabel.button(QMessageBox::Ok)->setText("Restart");
@@ -28,6 +27,29 @@ MainWindow::MainWindow(QWidget *parent)
 	{
 		exit(1);
 	});
+
+	restartButton = QPointer<QPushButton>(new QPushButton(this));
+	restartButton->setGeometry(QRect(0, 800, width(), 30));
+	restartButton->setText("Restart");
+	restartButton->setStyleSheet("border: none; background-color: #27211B; color: white;");
+	QFont restartButtonFont = restartButton->font();
+	restartButtonFont.setPixelSize(20);
+	restartButton->setFont(restartButtonFont);
+
+	connect(restartButton, &QPushButton::clicked, this, &MainWindow::restart);
+
+	pieceSelectorWidget = QPointer<PieceSelectorWidget>(new PieceSelectorWidget(this, 100));
+
+	connect(pieceSelectorWidget, &PieceSelectorWidget::selected, this, [this](PieceType pieceType, QPoint relativePosition)
+	{
+		QSharedPointer<Piece> piece = getPiece(relativePosition);
+		if(piece) {
+			piece->transform(pieceType);
+			isAllowToMove = true;
+		}
+	});
+
+	restart();
 }
 
 void MainWindow::onPieceMoved(Piece &piece)
@@ -143,26 +165,9 @@ bool MainWindow::addPiece(QPoint relativePosition, PlayerColor color, PieceType 
 	if(!isCellEmpty(*getCell(relativePosition)))
 		return false;
 
-	const QString &icon = [](PlayerColor _color, PieceType _pieceType)
-	{
-		if(_pieceType == PieceType::KING)
-			return _color == PlayerColor::WHITE ? config::pieces_paths::WHITE_KING: config::pieces_paths::BLACK_KING;
-		else if(_pieceType == PieceType::QUEEN)
-			return _color == PlayerColor::WHITE ? config::pieces_paths::WHITE_QUEEN: config::pieces_paths::BLACK_QUEEN;
-		else if(_pieceType == PieceType::ROOK)
-			return _color == PlayerColor::WHITE ? config::pieces_paths::WHITE_ROOK: config::pieces_paths::BLACK_ROOK;
-		else if(_pieceType == PieceType::BISHOP)
-			return _color == PlayerColor::WHITE ? config::pieces_paths::WHITE_BISHOP: config::pieces_paths::BLACK_BISHOP;
-		else if(_pieceType == PieceType::KNIGHT)
-			return _color == PlayerColor::WHITE ? config::pieces_paths::WHITE_KNIGHT: config::pieces_paths::BLACK_KNIGHT;
-		else if(_pieceType == PieceType::PAWN)
-			return _color == PlayerColor::WHITE ? config::pieces_paths::WHITE_PAWN: config::pieces_paths::BLACK_PAWN;
-
-		return QString();
-	}(color, pieceType);
 	pieces.push_back(QSharedPointer<Piece>(new Piece(newCentralWidget.data(),
 													 cells[relativePosition.x()][relativePosition.y()]->geometry(),
-					 relativePosition, icon, color, pieceType)));
+					 relativePosition, color, pieceType)));
 	return true;
 }
 
@@ -181,6 +186,9 @@ QSharedPointer<Cell> &MainWindow::findNearestCell(QPoint pos)
 
 bool MainWindow::attemptToMove(Piece &piece, const Cell &cell)
 {
+	if(!isAllowToMove)
+		return false;
+
 	bool _isCellEmpty = isCellEmpty(cell);
 	QSharedPointer<Piece> pieceDefender;
 	if(!_isCellEmpty)
@@ -238,6 +246,13 @@ bool MainWindow::attemptToMove(Piece &piece, const Cell &cell)
 				showVictoryLabel(PlayerColor::NONE);
 		}
 
+		if(piece.pieceType() == PieceType::PAWN &&
+				((piece.pieceOwner == PlayerColor::WHITE && piece.getRelativePosition().y() == 7) ||
+				 (piece.pieceOwner == PlayerColor::BLACK && piece.getRelativePosition().y() == 0))) {
+
+			pieceSelectorWidget->show(piece.pos(), PlayerColor::BLACK, piece.getRelativePosition());
+		}
+
 		return true;
 	}
 	return false;
@@ -264,58 +279,57 @@ bool MainWindow::isMovePossible(Piece &piece, const Cell &cell)
 		return std::abs(piece1RelativePos.x() - cellRelativePos.x()) <= 1 && std::abs(piece1RelativePos.y() - cellRelativePos.y()) <= 1;
 	};
 
-	if(piece.pieceType == PieceType::KING) {
+	if(piece.pieceType() == PieceType::KING) {
 		if(checkNearMove())
 			return true;
 
 		// castling
-		// TO DO
-//		else if(!piece.isMoved() && cellRelativePos.y() == piece.getRelativePosition().y()) {
-//			QSharedPointer<Piece> rook;
-//			if(cellRelativePos.x() == 6) {
-//				rook = getPiece(QPoint(7, cellRelativePos.y()));
-//				if(rook) {
-//					bool isCanCastle = true;
-//					for(auto item: getFilledVector(piece.getRelativePosition().x, 7)) {
-//						if(getCellAtacker(cells[item][piece.getRelativePosition().y()])) {
-//							rook->move(QPoint(5, cellRelativePos.y()));
-//							return true;
-//						}
-//					}
-//				}
-//				else
-//					return false;
-//			}
-//			else if(cellRelativePos.x() == 2) {
-//				rook = getPiece(QPoint(0, cellRelativePos.y()));
-//				if(rook && !rook->isMoved()) {
-//					rook->move(QPoint(3, cellRelativePos.y()));
-//					return true;
-//				}
-//				else
-//					return false;
-//			}
-//			else
-//				return false;
-//		}
+		else if(!piece.isMoved() && cellRelativePos.y() == piece.getRelativePosition().y()) {
+			QSharedPointer<Piece> rook;
+			auto isWaySafe = [this, &piece](int endPointX)
+			{
+				for(QPoint point: getPointsOnWay(piece.getRelativePosition(), QPoint(endPointX, piece.getRelativePosition().y()))) {
+					if(getCellAtacker(*getCell(point), piece.pieceOwner))
+						return false;
+				}
+				return true;
+			};
+
+			if(cellRelativePos.x() == 6) {
+				rook = getPiece(QPoint(7, cellRelativePos.y()));
+				if(rook && isWaySafe(6) && !rook->isMoved()) {
+					rook->move(QPoint(5, cellRelativePos.y()));
+					return true;
+				}
+			}
+			else if(cellRelativePos.x() == 2) {
+				rook = getPiece(QPoint(0, cellRelativePos.y()));
+
+				if(rook && isWaySafe(2) && !rook->isMoved()) {
+					rook->move(QPoint(3, cellRelativePos.y()));
+					return true;
+				}
+			}
+			return false;
+		}
 	}
 
-	else if(piece.pieceType == PieceType::QUEEN && (checkLinearMove() || checkDiagonalMove()))
+	else if(piece.pieceType() == PieceType::QUEEN && (checkLinearMove() || checkDiagonalMove()))
 			return true;
 
-	else if(piece.pieceType == PieceType::ROOK && checkLinearMove())
+	else if(piece.pieceType() == PieceType::ROOK && checkLinearMove())
 			return true;
 
-	else if(piece.pieceType == PieceType::BISHOP && checkDiagonalMove())
+	else if(piece.pieceType() == PieceType::BISHOP && checkDiagonalMove())
 			return true;
 
-	else if(piece.pieceType == PieceType::KNIGHT) {
+	else if(piece.pieceType() == PieceType::KNIGHT) {
 		if((std::abs(piece1RelativePos.x() - cellRelativePos.x()) == 1 && std::abs(piece1RelativePos.y() - cellRelativePos.y()) == 2) ||
 				(std::abs(piece1RelativePos.x() - cellRelativePos.x()) == 2 && std::abs(piece1RelativePos.y() - cellRelativePos.y()) == 1))
 			return true;
 	}
 
-	else if(piece.pieceType == PieceType::PAWN) {
+	else if(piece.pieceType() == PieceType::PAWN) {
 		// the white pawn can go only up, the black only down
 		if(piece.getRelativePosition().x() == cellRelativePos.x() &&
 				((piece.pieceOwner == PlayerColor::WHITE && ((!piece.isMoved() && piece1RelativePos.y() + 2 == cellRelativePos.y()) ||
@@ -334,7 +348,7 @@ bool MainWindow::isCanCapture(Piece &pieceAtacker, const Cell &cell)
 	const QPoint cellRelativePos = cell.relativePosition;
 
 	// only the pawn doesn't capture like move
-	if(pieceAtacker.pieceType == PieceType::PAWN) {
+	if(pieceAtacker.pieceType() == PieceType::PAWN) {
 		if((pieceAtackerRelativePos.x() - 1 == cellRelativePos.x() || pieceAtackerRelativePos.x() + 1 == cellRelativePos.x()) &&
 				((pieceAtacker.pieceOwner == PlayerColor::WHITE && pieceAtackerRelativePos.y() + 1 == cellRelativePos.y()) ||
 				(pieceAtacker.pieceOwner == PlayerColor::BLACK && pieceAtackerRelativePos.y() - 1 == cellRelativePos.y())))
@@ -349,7 +363,7 @@ bool MainWindow::isCanCapture(Piece &pieceAtacker, const Cell &cell)
 
 QSharedPointer<Piece> MainWindow::enPassant(Piece &pieceAtacker, const Cell &cell)
 {
-	if(pieceAtacker.pieceType != PieceType::PAWN) return QSharedPointer<Piece>();
+	if(pieceAtacker.pieceType() != PieceType::PAWN) return QSharedPointer<Piece>();
 	const QPoint pieceAtackerRelativePos = pieceAtacker.getRelativePosition();
 	const QPoint cellRelativePos = cell.relativePosition;
 
@@ -359,7 +373,7 @@ QSharedPointer<Piece> MainWindow::enPassant(Piece &pieceAtacker, const Cell &cel
 	 getPiece(QPoint(pieceAtackerRelativePos.x() - 1, pieceAtackerRelativePos.y()))};
 
 	for(QSharedPointer<Piece> enPassantPawn: enPassantPawns) {
-		if(enPassantPawn && enPassantPawn->pieceType == PieceType::PAWN &&
+		if(enPassantPawn && enPassantPawn->pieceType() == PieceType::PAWN &&
 				enPassantPawn->getLastMove() == currentTurnCount - 1 && enPassantPawn->getMoveCount() == 1 &&
 				((pieceAtacker.pieceOwner == PlayerColor::WHITE && cellRelativePos.y() == 5) ||
 				 (pieceAtacker.pieceOwner == PlayerColor::BLACK && cellRelativePos.y() == 2)) &&
@@ -416,7 +430,7 @@ PlayerColor MainWindow::isCheckmate()
 				// only the allies of the king can help
 				if(piece->pieceOwner != king->pieceOwner) continue;
 				// There are conditions above when the king can save by himself
-				if(piece->pieceType == PieceType::KING) continue;
+				if(piece->pieceType() == PieceType::KING) continue;
 
 				QSharedPointer<Cell> cell = getCell(atacker->getRelativePosition());
 				// if the others can capture the atacker
@@ -426,7 +440,7 @@ PlayerColor MainWindow::isCheckmate()
 				// or en passant may help
 				else {
 					const int dy = atacker->pieceOwner == PlayerColor::WHITE ? -1: 1;
-					if(atacker->pieceType == PieceType::PAWN &&
+					if(atacker->pieceType() == PieceType::PAWN &&
 							enPassant(*piece, *getCell(QPoint(atacker->getRelativePosition().x(),
 															  atacker->getRelativePosition().y() + dy)))) {
 						QPoint pieceOldPOsition = piece->getRelativePosition();
@@ -476,8 +490,8 @@ bool MainWindow::isStalemate()
 				if(piece->getRelativePosition() != cell->relativePosition &&
 						((_isCellEmpty && (isMovePossible(*piece, *cell) || enPassant(*piece, *cell))) ||
 						(!_isCellEmpty && isCanCapture(*piece, *cell))) &&
-						((piece->pieceType == PieceType::KING && !getCellAtacker(*cell, piece->pieceOwner)) ||
-						 (piece->pieceType != PieceType::KING && !getCellAtacker(*getCell(getPiece(piece->pieceOwner, PieceType::KING)->getRelativePosition()),
+						((piece->pieceType() == PieceType::KING && !getCellAtacker(*cell, piece->pieceOwner)) ||
+						 (piece->pieceType() != PieceType::KING && !getCellAtacker(*getCell(getPiece(piece->pieceOwner, PieceType::KING)->getRelativePosition()),
 																				 piece->pieceOwner, piece, cell->relativePosition)))) {
 					if(piece->pieceOwner == PlayerColor::WHITE)
 						_isStalemate.first = false;
@@ -522,7 +536,7 @@ QSharedPointer<Piece> MainWindow::getPiece(QPoint relativePosition)
 QSharedPointer<Piece> MainWindow::getPiece(PlayerColor color, PieceType pieceType)
 {
 	auto findResult = std::find_if(pieces.begin(), pieces.end(), [color, pieceType](QSharedPointer<Piece> &piece){
-		return piece->pieceOwner == color && piece->pieceType == pieceType;
+		return piece->pieceOwner == color && piece->pieceType() == pieceType;
 	});
 
 	if(findResult != pieces.end())
@@ -535,7 +549,7 @@ QVector<QSharedPointer<Piece>> MainWindow::getPieces(PieceType pieceType)
 {
 	QVector<QSharedPointer<Piece>> _pieces;
 	for(auto &piece: pieces) {
-		if(piece->pieceType == pieceType)
+		if(piece->pieceType() == pieceType)
 			_pieces.push_back(piece);
 	}
 
@@ -578,7 +592,6 @@ QSharedPointer<Piece> MainWindow::getCellAtacker(const Cell &cell, PlayerColor k
 	return output;
 }
 
-
 void MainWindow::restart()
 {
 	currentTurnCount = 1;
@@ -586,6 +599,7 @@ void MainWindow::restart()
 	activeCell.reset();
 	lastTurnCells = {QSharedPointer<Cell>(), QSharedPointer<Cell>()};
 	checkedCell.reset();
+	isAllowToMove = true;
 
 	for(auto &vec: cells) {
 		for(auto &cell: vec)
@@ -593,7 +607,6 @@ void MainWindow::restart()
 	}
 	cells.clear();
 	newCentralWidget = QPointer<QWidget>(new QWidget(this));
-
 
 	// the chessboard is 8x8
 	for(int x = 0; x <= 7; ++x) {
@@ -610,7 +623,6 @@ void MainWindow::restart()
 
 		}
 	}
-	setCentralWidget(newCentralWidget);
 
 	// connects
 	for(auto &vec: cells) {
@@ -653,6 +665,10 @@ void MainWindow::restart()
 		addPiece(QPoint(x, 1), PlayerColor::WHITE, PieceType::PAWN);
 		addPiece(QPoint(x, 6), PlayerColor::BLACK, PieceType::PAWN);
 	}
+
+	// !!!CHANGE!!!
+	restartButton->setParent(newCentralWidget);
+	pieceSelectorWidget->setParent(newCentralWidget);
 	setCentralWidget(newCentralWidget);
 	for(auto &piece: pieces) {
 		connect(piece.data(), &Piece::mouseReleaseSignal, this, [this, piece]()
