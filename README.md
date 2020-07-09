@@ -13,6 +13,3 @@ The pieces are taken from [wikimedia](https://commons.wikimedia.org/wiki/Categor
 
 ---
 ![screenshot4](https://github.com/olegskip/chess/blob/master/screenshots/screenshot4.png)
-
----
-![screenshot4](https://github.com/olegskip/chess/blob/master/screenshots/screenshot4.png)

@@ -51,10 +51,11 @@ private:
 	bool attemptToMove(Piece &piece, const Cell &cell);
 	bool isMovePossible(Piece &piece, const Cell &cell);
 	bool isCanCapture(Piece &pieceAtacker, const Cell &cell);
-	QSharedPointer<Piece> enPassant(Piece &pieceAtacker, const Cell &cell);
 	bool isCellEmpty(const Cell &cell) const;
+	QSharedPointer<Piece> enPassant(Piece &pieceAtacker, const Cell &cell);
 	PlayerColor isCheckmate();
 	bool isStalemate();
+	bool castling(Piece &piece, const Cell &cell);
 
 	void removePiece(const Piece &pieceToRemove);
 	QSharedPointer<Piece> getPiece(QPoint relativePosition);
