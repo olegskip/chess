@@ -237,14 +237,12 @@ bool MainWindow::attemptToMove(Piece &piece, const Cell &cell)
 			currentTurnCount++;
 		}
 
+		appendChessboardPosition();
 		const PlayerColor _isCheckmate = isCheckmate();
 		if(_isCheckmate != PlayerColor::NONE)
 			showVictoryLabel(_isCheckmate);
-		else {
-			const bool _isStalemate = isStalemate();
-			if(_isStalemate)
-				showVictoryLabel(PlayerColor::NONE);
-		}
+		else if(isDraw())
+			showVictoryLabel(PlayerColor::NONE);
 
 		if(piece.pieceType() == PieceType::PAWN &&
 				((piece.pieceOwner == PlayerColor::WHITE && piece.getRelativePosition().y() == 7) ||
@@ -443,6 +441,43 @@ PlayerColor MainWindow::isCheckmate()
 	return PlayerColor::NONE;
 }
 
+bool MainWindow::castling(Piece &piece, const Cell &cell)
+{
+	const QPoint cellRelativePos = cell.relativePosition;
+	if(piece.pieceType() == PieceType::KING && !piece.isMoved() && !getCellAtacker(*getCell(piece.getRelativePosition()), piece.pieceOwner)) {
+		QSharedPointer<Piece> rook;
+		auto isWaySafe = [this, &piece](int endPointX)
+		{
+			for(QPoint point: getPointsOnWay(piece.getRelativePosition(), QPoint(endPointX, piece.getRelativePosition().y()))) {
+				if(getCellAtacker(*getCell(point), piece.pieceOwner))
+					return false;
+			}
+			return true;
+		};
+
+		if(cellRelativePos.x() == 6) {
+			rook = getPiece(QPoint(7, cellRelativePos.y()));
+			if(rook && isWaySafe(6) && !rook->isMoved()) {
+				rook->move(QPoint(5, cellRelativePos.y()));
+				return true;
+			}
+		}
+		else if(cellRelativePos.x() == 2) {
+			rook = getPiece(QPoint(0, cellRelativePos.y()));
+			if(rook && isWaySafe(2) && !rook->isMoved()) {
+				rook->move(QPoint(3, cellRelativePos.y()));
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
+bool MainWindow::isDraw()
+{
+	return isStalemate() || threefoldRepetition();
+}
+
 bool MainWindow::isStalemate()
 {
 	// we check is checkmate outside the function
@@ -474,36 +509,24 @@ bool MainWindow::isStalemate()
 	return _isStalemate.first || _isStalemate.second;
 }
 
-bool MainWindow::castling(Piece &piece, const Cell &cell)
+bool MainWindow::threefoldRepetition()
 {
-	const QPoint cellRelativePos = cell.relativePosition;
-	if(piece.pieceType() == PieceType::KING && !piece.isMoved() && !getCellAtacker(*getCell(piece.getRelativePosition()), piece.pieceOwner)) {
-		QSharedPointer<Piece> rook;
-		auto isWaySafe = [this, &piece](int endPointX)
-		{
-			for(QPoint point: getPointsOnWay(piece.getRelativePosition(), QPoint(endPointX, piece.getRelativePosition().y()))) {
-				if(getCellAtacker(*getCell(point), piece.pieceOwner))
-					return false;
-			}
+	for(auto &chessboardPosition: chessboardPositions) {
+		int repetitionCount = std::count(chessboardPositions.begin(), chessboardPositions.end(), chessboardPosition);
+		if(repetitionCount >= 3)
 			return true;
-		};
-
-		if(cellRelativePos.x() == 6) {
-			rook = getPiece(QPoint(7, cellRelativePos.y()));
-			if(rook && isWaySafe(6) && !rook->isMoved()) {
-				rook->move(QPoint(5, cellRelativePos.y()));
-				return true;
-			}
-		}
-		else if(cellRelativePos.x() == 2) {
-			rook = getPiece(QPoint(0, cellRelativePos.y()));
-			if(rook && isWaySafe(2) && !rook->isMoved()) {
-				rook->move(QPoint(3, cellRelativePos.y()));
-				return true;
-			}
-		}
 	}
+
 	return false;
+}
+
+void MainWindow::appendChessboardPosition()
+{
+	chessboardPositions.push_back(ChessboardPosition());
+	for(auto &piece: pieces) {
+		chessboardPositions.back().push_back(QPointer<SimplePiece>(new SimplePiece(piece->getRelativePosition(),
+																				 piece->pieceType(), piece->pieceOwner)));
+	}
 }
 
 void MainWindow::removePiece(const Piece &pieceToRemove)
@@ -609,6 +632,7 @@ void MainWindow::restart()
 			cell->disconnect();
 	}
 	cells.clear();
+	chessboardPositions.clear();
 	newCentralWidget = QPointer<QWidget>(new QWidget(this));
 
 	// the chessboard is 8x8
@@ -683,6 +707,7 @@ void MainWindow::restart()
 			onPieceClicked(*piece);
 		});
 	}
+	appendChessboardPosition();
 }
 
 void MainWindow::showVictoryLabel(PlayerColor looserColor)
@@ -703,7 +728,7 @@ void MainWindow::showVictoryLabel(PlayerColor looserColor)
 											 "<p style='text-align: center;'>%2 is winning dad.</p>").arg("\":/victory_label.png\"", winnerName));
 
 	victoryLabel.show();
-	victoryLabel.move(mapToGlobal(QPoint(x() + width() / 2 - victoryLabel.width() / 2, y() + height() / 2 - victoryLabel.height() / 2)));
+	victoryLabel.move(QPoint(x() + width() / 2 - victoryLabel.width() / 2, y() + height() / 2 - victoryLabel.height() / 2));
 }
 
 MainWindow::~MainWindow()

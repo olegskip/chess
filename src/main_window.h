@@ -20,6 +20,46 @@
 #include <array>
 
 
+class SimplePiece: public QObject
+{
+public:
+	SimplePiece(QPoint _relativePosition, PieceType _pieceType, PlayerColor _pieceColor):
+		relativePosition(_relativePosition), pieceType(_pieceType), pieceColor(_pieceColor)
+	{
+	}
+
+	const QPoint relativePosition;
+	const PieceType pieceType;
+	const PlayerColor pieceColor;
+
+	bool operator ==(const SimplePiece &second)
+	{
+		return relativePosition == second.relativePosition && pieceType == second.pieceType && pieceColor == second.pieceColor;
+	}
+};
+
+class ChessboardPosition: private QVector<QPointer<SimplePiece>>
+{
+public:
+	using QVector<QPointer<SimplePiece>>::push_back;
+	bool operator ==(const ChessboardPosition &second)
+	{
+		for(auto &firstItem: *this) {
+			bool isEqual = false;
+			for(auto &secondItem: second) {
+				if(*firstItem == *secondItem) {
+					isEqual = true;
+					break;
+				}
+			}
+			if(!isEqual)
+				return false;
+		}
+		return true;
+	}
+};
+
+
 class MainWindow : public QMainWindow
 {
     Q_OBJECT
@@ -54,8 +94,18 @@ private:
 	bool isCellEmpty(const Cell &cell) const;
 	QSharedPointer<Piece> enPassant(Piece &pieceAtacker, const Cell &cell);
 	PlayerColor isCheckmate();
-	bool isStalemate();
 	bool castling(Piece &piece, const Cell &cell);
+
+	// ---draw---
+	bool isDraw();
+	bool isStalemate();
+//	bool isSufficientMaterial();
+	bool threefoldRepetition();
+	QVector<ChessboardPosition> chessboardPositions;
+
+	// This function is used for save position for preventing threefold repetition
+	void appendChessboardPosition();
+	// ---draw---
 
 	void removePiece(const Piece &pieceToRemove);
 	QSharedPointer<Piece> getPiece(QPoint relativePosition);
