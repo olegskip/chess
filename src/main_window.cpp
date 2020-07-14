@@ -475,7 +475,7 @@ bool MainWindow::castling(Piece &piece, const Cell &cell)
 
 bool MainWindow::isDraw()
 {
-	return isStalemate() || threefoldRepetition();
+	return isStalemate() || threefoldRepetition() || isSufficientMaterial();
 }
 
 bool MainWindow::isStalemate()
@@ -509,6 +509,41 @@ bool MainWindow::isStalemate()
 	return _isStalemate.first || _isStalemate.second;
 }
 
+bool MainWindow::isSufficientMaterial()
+{
+	// if only two kings
+	if(pieces.size() == 0)
+		return true;
+	else {
+		for(auto &piece: pieces) {
+			if(piece->pieceType() == PieceType::QUEEN || piece->pieceType() == PieceType::ROOK || piece->pieceType() == PieceType::PAWN)
+				return false;
+		}
+	}
+
+	const int whiteKnightsCount = getPieces(PieceType::KNIGHT, PlayerColor::WHITE).size();
+	const int blackKnightsCount = getPieces(PieceType::KNIGHT, PlayerColor::BLACK).size();
+
+	if(whiteKnightsCount >= 2 || blackKnightsCount >= 2)
+		return false;
+
+	const auto whiteBishops = getPieces(PieceType::BISHOP, PlayerColor::WHITE);
+	const auto blackBishops = getPieces(PieceType::BISHOP, PlayerColor::WHITE);
+	auto isBishopsCellsEqual = [this](const QVector<QSharedPointer<Piece>> &bishops)
+	{
+		if(bishops.size() == 0) return false;
+		const CellType frontCellType = getCell(bishops.front()->getRelativePosition())->cellType;
+		for(auto &bishop: bishops) {
+			if(getCell(bishop->getRelativePosition())->cellType != frontCellType)
+				return false;
+		}
+		return true;
+	};
+	if((whiteBishops.size() > 1 && isBishopsCellsEqual(whiteBishops)) || (blackBishops.size() > 1 && isBishopsCellsEqual(blackBishops)))
+		return true;
+	return false;
+}
+
 bool MainWindow::threefoldRepetition()
 {
 	for(auto &chessboardPosition: chessboardPositions) {
@@ -531,6 +566,8 @@ void MainWindow::appendChessboardPosition()
 
 void MainWindow::removePiece(const Piece &pieceToRemove)
 {
+	if(pieceToRemove.pieceType() == PieceType::KING)
+		return;
 	const auto pieceToRemoveRelativePos = pieceToRemove.getRelativePosition();
 	const auto pieceToRemoveOwner = pieceToRemove.pieceOwner;
 	auto removeResult = std::find_if(pieces.begin(), pieces.end(), [pieceToRemoveRelativePos, pieceToRemoveOwner](const QSharedPointer<Piece> &piece)
@@ -574,6 +611,17 @@ QVector<QSharedPointer<Piece>> MainWindow::getPieces(PieceType pieceType)
 	QVector<QSharedPointer<Piece>> _pieces;
 	for(auto &piece: pieces) {
 		if(piece->pieceType() == pieceType)
+			_pieces.push_back(piece);
+	}
+
+	return _pieces;
+}
+
+QVector<QSharedPointer<Piece>> MainWindow::getPieces(PieceType pieceType, PlayerColor pieceColor)
+{
+	QVector<QSharedPointer<Piece>> _pieces;
+	for(auto &piece: pieces) {
+		if(piece->pieceType() == pieceType && piece->pieceOwner == pieceColor)
 			_pieces.push_back(piece);
 	}
 

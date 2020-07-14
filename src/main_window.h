@@ -99,7 +99,7 @@ private:
 	// ---draw---
 	bool isDraw();
 	bool isStalemate();
-//	bool isSufficientMaterial();
+	bool isSufficientMaterial();
 	bool threefoldRepetition();
 	QVector<ChessboardPosition> chessboardPositions;
 
@@ -111,6 +111,7 @@ private:
 	QSharedPointer<Piece> getPiece(QPoint relativePosition);
 	QSharedPointer<Piece> getPiece(PlayerColor color, PieceType pieceType);
 	QVector<QSharedPointer<Piece>> getPieces(PieceType pieceType);
+	QVector<QSharedPointer<Piece>> getPieces(PieceType pieceType, PlayerColor pieceColor);
 
 	QSharedPointer<Cell> getCell(QPoint relativePosition);
 	QSharedPointer<Piece> getCellAtacker(const Cell &cell, PlayerColor kingColor,
