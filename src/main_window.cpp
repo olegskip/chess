@@ -3,9 +3,62 @@
 MainWindow::MainWindow(QWidget *parent)
 	: QMainWindow(parent)
 {
-	setGeometry(x(), y(), 800, 830);
-	setMinimumSize(size());
-	setMaximumSize(size());
+	setMinimumSize(600, 600);
+	setMaximumSize(1400, 1400);
+
+	mCentralWidget = QPointer<QWidget>(new QWidget());
+	setCentralWidget(mCentralWidget);
+	piecesHorizontalLayouts = QPointer<QHBoxLayout>(new QHBoxLayout());
+	piecesHorizontalLayouts->setSpacing(0);
+	piecesHorizontalLayouts->setContentsMargins(0, 0, 0, 0);
+
+	mainVerticalLayout = QPointer<QVBoxLayout>(new QVBoxLayout());
+	mainVerticalLayout->setSpacing(0);
+	mainVerticalLayout->setContentsMargins(0, 0, 0, 0);
+
+	// the chessboard is 8x8
+	for(int x = 0; x <= config::BOARD_SIDE_SIZE - 1; ++x) {
+		cells.push_back(QVector<QSharedPointer<Cell>>());
+		for(int y = 0; y <= config::BOARD_SIDE_SIZE - 1; ++y) {
+			CellType cellType;
+			if((x % 2 == 0 && y % 2 == 0) || (x % 2 != 0 && y % 2 != 0))
+				cellType = CellType::WHITE;
+			else
+				cellType = CellType::BLACK;
+
+			cells[x].push_back(QSharedPointer<Cell>::create(mCentralWidget, QPoint(x, y), QPoint(x, y), cellType));
+		}
+	}
+
+	for(int x = 0; x < cells.size(); ++x) {
+		piecesVerticalLayouts.push_back(QPointer<QVBoxLayout>(new QVBoxLayout()));
+		for(int y = 0; y < cells.size(); ++y) {
+			piecesVerticalLayouts.back()->addWidget(cells[x][config::BOARD_SIDE_SIZE - 1 - y].data());
+		}
+		piecesHorizontalLayouts->addLayout(piecesVerticalLayouts.back());
+	}
+
+	restartButton = QPointer<QPushButton>(new QPushButton(this));
+	restartButton->setText("RESTART");
+	restartButton->setMaximumSize(1000, 35);
+	restartButton->setStyleSheet("border: none; background-color: #27211B; color: white;");
+	QFont restartButtonFont = restartButton->font();
+	restartButtonFont.setPixelSize(30);
+	restartButton->setFont(restartButtonFont);
+	connect(restartButton, &QPushButton::clicked, this, &MainWindow::restart);
+
+	mainVerticalLayout->addLayout(piecesHorizontalLayouts);
+	mainVerticalLayout->addWidget(restartButton);
+	centralWidget()->setLayout(mainVerticalLayout);
+
+	for(auto &vec: cells) {
+		for(QSharedPointer<Cell> cell: vec) {
+			connect(cell.data(), &Cell::clicked, this, [this, cell]()
+			{
+				onCellClicked(*cell);
+			});
+		}
+	}
 
 	victoryLabel.setStandardButtons(QMessageBox::Ok | QMessageBox::Cancel);
 	victoryLabel.button(QMessageBox::Ok)->setText("Restart");
@@ -28,16 +81,6 @@ MainWindow::MainWindow(QWidget *parent)
 		exit(1);
 	});
 
-	restartButton = QPointer<QPushButton>(new QPushButton(this));
-	restartButton->setGeometry(QRect(0, 800, width(), 30));
-	restartButton->setText("Restart");
-	restartButton->setStyleSheet("border: none; background-color: #27211B; color: white;");
-	QFont restartButtonFont = restartButton->font();
-	restartButtonFont.setPixelSize(20);
-	restartButton->setFont(restartButtonFont);
-
-	connect(restartButton, &QPushButton::clicked, this, &MainWindow::restart);
-
 	pieceSelectorWidget = QPointer<PieceSelectorWidget>(new PieceSelectorWidget(this, 100));
 
 	connect(pieceSelectorWidget, &PieceSelectorWidget::selected, this, [this](PieceType pieceType, QPoint relativePosition)
@@ -45,11 +88,14 @@ MainWindow::MainWindow(QWidget *parent)
 		QSharedPointer<Piece> piece = getPiece(relativePosition);
 		if(piece) {
 			piece->transform(pieceType);
-			isAllowToMove = true;
+			isAllowedToMove = true;
 		}
 	});
 
-	restart();
+	QTimer::singleShot(1, [this]()
+	{
+		restart();
+	});
 }
 
 void MainWindow::onPieceMoved(Piece &piece)
@@ -57,7 +103,7 @@ void MainWindow::onPieceMoved(Piece &piece)
 	QSharedPointer<Cell> &nearestCell = findNearestCell(piece.pos());
 	if(piece.getRelativePosition() == nearestCell->relativePosition || !attemptToMove(piece, *nearestCell)) {
 		// if the move isn't possible move back the piece
-		piece.move(piece.getRelativePosition(), -1);
+		piece.relativeMove(piece.getRelativePosition(), -1);
 	}
 	else if(activeCell){
 		activeCell.reset();
@@ -66,6 +112,8 @@ void MainWindow::onPieceMoved(Piece &piece)
 
 void MainWindow::onPieceClicked(Piece &piece)
 {
+	if(!isAllowedToMove) return;
+
 	bool isMoved = false;
 	if(activeCell) {
 		if(piece.pieceOwner != currentTurn && !isCellEmpty(*cells[piece.getRelativePosition().x()][piece.getRelativePosition().y()])) {
@@ -165,9 +213,10 @@ bool MainWindow::addPiece(QPoint relativePosition, PlayerColor color, PieceType 
 	if(!isCellEmpty(*getCell(relativePosition)))
 		return false;
 
-	pieces.push_back(QSharedPointer<Piece>(new Piece(newCentralWidget.data(),
+	pieces.push_back(QSharedPointer<Piece>(new Piece(mCentralWidget,
 													 cells[relativePosition.x()][relativePosition.y()]->geometry(),
 					 relativePosition, color, pieceType)));
+	pieces.back()->show();
 	return true;
 }
 
@@ -186,7 +235,7 @@ QSharedPointer<Cell> &MainWindow::findNearestCell(QPoint pos)
 
 bool MainWindow::attemptToMove(Piece &piece, const Cell &cell)
 {
-	if(!isAllowToMove)
+	if(!isAllowedToMove)
 		return false;
 
 	bool _isCellEmpty = isCellEmpty(cell);
@@ -204,7 +253,7 @@ bool MainWindow::attemptToMove(Piece &piece, const Cell &cell)
 		if(enPassantResult)
 			pieceDefender = enPassantResult;
 
-		piece.move(cell.relativePosition, currentTurnCount);
+		piece.relativeMove(cell.relativePosition, movesCount);
 
 		QVector<QSharedPointer<Piece>> kings = getPieces(PieceType::KING);
 		if(checkedCell) {
@@ -215,7 +264,7 @@ bool MainWindow::attemptToMove(Piece &piece, const Cell &cell)
 			if(king) {
 				if(getCellAtacker(*cells[king->getRelativePosition().x()][king->getRelativePosition().y()], king->pieceOwner, pieceDefender)) {
 					if(king->pieceOwner == piece.pieceOwner) {
-						piece.move(oldPieceRelPos, -1);
+						piece.relativeMove(oldPieceRelPos, -1);
 						checkedCell = cells[king->getRelativePosition().x()][king->getRelativePosition().y()];
 						checkedCell->activate(CellActiveType::KING_CHECKED);
 						return false;
@@ -232,10 +281,9 @@ bool MainWindow::attemptToMove(Piece &piece, const Cell &cell)
 
 		if(currentTurn == PlayerColor::WHITE)
 			currentTurn = PlayerColor::BLACK;
-		else if(currentTurn == PlayerColor::BLACK) {
+		else if(currentTurn == PlayerColor::BLACK)
 			currentTurn = PlayerColor::WHITE;
-			currentTurnCount++;
-		}
+		movesCount++;
 
 		appendChessboardPosition();
 		const PlayerColor _isCheckmate = isCheckmate();
@@ -249,6 +297,7 @@ bool MainWindow::attemptToMove(Piece &piece, const Cell &cell)
 				 (piece.pieceOwner == PlayerColor::BLACK && piece.getRelativePosition().y() == 0))) {
 
 			pieceSelectorWidget->show(piece.pos(), PlayerColor::BLACK, piece.getRelativePosition());
+			isAllowedToMove = false;
 		}
 
 		return true;
@@ -351,7 +400,7 @@ QSharedPointer<Piece> MainWindow::enPassant(Piece &pieceAtacker, const Cell &cel
 
 	for(QSharedPointer<Piece> enPassantPawn: enPassantPawns) {
 		if(enPassantPawn && enPassantPawn->pieceType() == PieceType::PAWN &&
-				enPassantPawn->getLastMove() == currentTurnCount - 1 && enPassantPawn->getMoveCount() == 1 &&
+				enPassantPawn->getLastMove() == movesCount - 1 && enPassantPawn->getMoveCount() == 1 &&
 				((pieceAtacker.pieceOwner == PlayerColor::WHITE && cellRelativePos.y() == 5) ||
 				 (pieceAtacker.pieceOwner == PlayerColor::BLACK && cellRelativePos.y() == 2)) &&
 				((pieceAtacker.pieceOwner == PlayerColor::WHITE && pieceAtackerRelativePos.y() == 4) ||
@@ -411,11 +460,11 @@ PlayerColor MainWindow::isCheckmate()
 							enPassant(*piece, *getCell(QPoint(atacker->getRelativePosition().x(),
 															  atacker->getRelativePosition().y() + dy)))) {
 						QPoint pieceOldPOsition = piece->getRelativePosition();
-						piece->move(cell->relativePosition, -1);
+						piece->relativeMove(cell->relativePosition, -1);
 						piece->isHasCollision = false;
 						bool cellAtacker = getCellAtacker(*getCell(king->getRelativePosition()), king->pieceOwner, atacker);
 						piece->isHasCollision = true;
-						piece->move(pieceOldPOsition, -1);
+						piece->relativeMove(pieceOldPOsition, -1);
 						if(!cellAtacker)
 							return PlayerColor::NONE;
 					}
@@ -425,9 +474,9 @@ PlayerColor MainWindow::isCheckmate()
 				for(QPoint pointOnWay: pointsOnWay) {
 					if(isMovePossible(*piece, *getCell(pointOnWay))) {
 						QPoint oldPosition = piece->getRelativePosition();
-						piece->move(pointOnWay, -1);
+						piece->relativeMove(pointOnWay, -1);
 						auto isCellChecked = getCellAtacker(*getCell(king->getRelativePosition()), king->pieceOwner);
-						piece->move(oldPosition, -1);
+						piece->relativeMove(oldPosition, -1);
 
 						if(!isCellChecked)
 							return PlayerColor::NONE;
@@ -458,14 +507,14 @@ bool MainWindow::castling(Piece &piece, const Cell &cell)
 		if(cellRelativePos.x() == 6) {
 			rook = getPiece(QPoint(7, cellRelativePos.y()));
 			if(rook && isWaySafe(6) && !rook->isMoved()) {
-				rook->move(QPoint(5, cellRelativePos.y()));
+				rook->relativeMove(QPoint(5, cellRelativePos.y()));
 				return true;
 			}
 		}
 		else if(cellRelativePos.x() == 2) {
 			rook = getPiece(QPoint(0, cellRelativePos.y()));
 			if(rook && isWaySafe(2) && !rook->isMoved()) {
-				rook->move(QPoint(3, cellRelativePos.y()));
+				rook->relativeMove(QPoint(3, cellRelativePos.y()));
 				return true;
 			}
 		}
@@ -642,14 +691,13 @@ QSharedPointer<Cell> MainWindow::getCell(QPoint relativePosition)
 
 QSharedPointer<Piece> MainWindow::getCellAtacker(const Cell &cell, PlayerColor kingColor, const QSharedPointer<Piece> &checkWithout, QPoint newPosition)
 {
-
 	QSharedPointer<Piece> pieceOnCell = getPiece(cell.relativePosition);
 	bool isCheckWithout = true;
 	QPoint oldPosition = QPoint(-1, -1);
 	if(checkWithout && newPosition != QPoint(-1, -1)) {
 		isCheckWithout = false;
 		oldPosition = checkWithout->getRelativePosition();
-		checkWithout->move(newPosition);
+		checkWithout->relativeMove(newPosition);
 	}
 
 	QSharedPointer<Piece> output;
@@ -661,54 +709,26 @@ QSharedPointer<Piece> MainWindow::getCellAtacker(const Cell &cell, PlayerColor k
 
 
 	if(checkWithout && oldPosition != QPoint(-1, -1))
-		checkWithout->move(oldPosition);
+		checkWithout->relativeMove(oldPosition);
 
 	return output;
 }
 
 void MainWindow::restart()
 {
-	currentTurnCount = 1;
+	movesCount = 0;
 	currentTurn = PlayerColor::WHITE;
 	activeCell.reset();
 	lastTurnCells = {QSharedPointer<Cell>(), QSharedPointer<Cell>()};
 	checkedCell.reset();
-	isAllowToMove = true;
+	isAllowedToMove = true;
+
+	chessboardPositions.clear();
 
 	for(auto &vec: cells) {
 		for(auto &cell: vec)
-			cell->disconnect();
+			cell->deactivate();
 	}
-	cells.clear();
-	chessboardPositions.clear();
-	newCentralWidget = QPointer<QWidget>(new QWidget(this));
-
-	// the chessboard is 8x8
-	for(int x = 0; x <= 7; ++x) {
-		cells.push_back(QVector<QSharedPointer<Cell>>());
-		for(int y = 0; y <= 7; ++y) {
-			CellType cellType;
-			if((x % 2 == 0 && y % 2 == 0) || (x % 2 != 0 && y % 2 != 0))
-				cellType = CellType::WHITE;
-			else
-				cellType = CellType::BLACK;
-
-			cells[x].push_back(QSharedPointer<Cell>::create(newCentralWidget.data(), QRect(x * config::CELL_SIDE_SIZE, 7 * config::CELL_SIDE_SIZE - y * config::CELL_SIDE_SIZE,
-																													config::CELL_SIDE_SIZE, config::CELL_SIDE_SIZE), QPoint(x, y), cellType));
-
-		}
-	}
-
-	// connects
-	for(auto &vec: cells) {
-		for(QSharedPointer<Cell> cell: vec) {
-			connect(cell.data(), &Cell::clicked, this, [this, cell]()
-			{
-				onCellClicked(*cell);
-			});
-		}
-	}
-
 
 	for(QSharedPointer<Piece> &piece: pieces)
 		piece->disconnect();
@@ -741,10 +761,6 @@ void MainWindow::restart()
 		addPiece(QPoint(x, 6), PlayerColor::BLACK, PieceType::PAWN);
 	}
 
-	// !!!CHANGE!!!
-	restartButton->setParent(newCentralWidget);
-	pieceSelectorWidget->setParent(newCentralWidget);
-	setCentralWidget(newCentralWidget);
 	for(auto &piece: pieces) {
 		connect(piece.data(), &Piece::mouseReleaseSignal, this, [this, piece]()
 		{
@@ -756,6 +772,11 @@ void MainWindow::restart()
 		});
 	}
 	appendChessboardPosition();
+
+	QTimer::singleShot(1, [this]()
+	{
+		fixPiecesPos();
+	});
 }
 
 void MainWindow::showVictoryLabel(PlayerColor looserColor)
@@ -777,6 +798,19 @@ void MainWindow::showVictoryLabel(PlayerColor looserColor)
 
 	victoryLabel.show();
 	victoryLabel.move(QPoint(x() + width() / 2 - victoryLabel.width() / 2, y() + height() / 2 - victoryLabel.height() / 2));
+}
+
+void MainWindow::resizeEvent(QResizeEvent *event) // override
+{
+	fixPiecesPos();
+}
+
+void MainWindow::fixPiecesPos()
+{
+	for(auto &piece: pieces) {
+		piece->move(cells[piece->getRelativePosition().x()][piece->getRelativePosition().y()]->pos());
+		piece->resize(cells[piece->getRelativePosition().x()][piece->getRelativePosition().y()]->size());
+	}
 }
 
 MainWindow::~MainWindow()

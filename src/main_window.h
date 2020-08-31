@@ -7,6 +7,8 @@
 #include "cell.h"
 
 #include <QSharedPointer>
+#include <QHBoxLayout>
+#include <QHBoxLayout>
 #include <QMainWindow>
 #include <QMessageBox>
 #include <functional>
@@ -65,8 +67,8 @@ class MainWindow : public QMainWindow
     Q_OBJECT
 
 public:
-    MainWindow(QWidget *parent = nullptr);
-    ~MainWindow();
+	MainWindow(QWidget *parent = nullptr);
+	~MainWindow();
 
 private slots:
 	void onPieceMoved(Piece &piece);
@@ -79,6 +81,10 @@ private:
 	QPair<QSharedPointer<Cell>, QSharedPointer<Cell>> lastTurnCells;
 	QSharedPointer<Cell> checkedCell;
 	QVector<QSharedPointer<Piece>> pieces;
+
+	QPointer<QVBoxLayout> mainVerticalLayout;
+	QPointer<QHBoxLayout> piecesHorizontalLayouts;
+	QVector<QPointer<QVBoxLayout>> piecesVerticalLayouts;
 
 	bool addPiece(QPoint relativePosition, PlayerColor color, PieceType pieceType);
 
@@ -119,16 +125,20 @@ private:
 
 	void restart();
 
-	int currentTurnCount = 1;
+	void resizeEvent(QResizeEvent *event) override;
+	void fixPiecesPos();
+
+	int movesCount = 0;
 	PlayerColor currentTurn = PlayerColor::WHITE;
-	bool isAllowToMove = true;
+	bool isAllowedToMove = true;
 
 	QMessageBox victoryLabel;
 	void showVictoryLabel(PlayerColor looserColor);
 
-	QPointer<QWidget> newCentralWidget;
+	QPointer<PieceSelectorWidget> pieceSelectorWidget;
+
+	QPointer<QWidget> mCentralWidget;
 	QPointer<QPushButton> restartButton;
 
-	QPointer<PieceSelectorWidget> pieceSelectorWidget;
 };
 #endif // MAINWINDOW_H

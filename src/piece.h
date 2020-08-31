@@ -33,7 +33,7 @@ public:
 	const PlayerColor pieceOwner;
 	PieceType pieceType() const;
 
-	void move(QPoint relativePosition, int currentMove = -1);
+	void relativeMove(QPoint relativePosition, int currentMove = -1);
 	QPoint getRelativePosition() const;
 	bool isMoved() const;
 	int getLastMove() const;
@@ -43,6 +43,8 @@ public:
 
 	static QString getImage(PieceType _pieceType, PlayerColor _color);
 	void transform(PieceType newPieceType);
+
+	bool isDraggingNow() const;
 
 signals:
 	void mouseReleaseSignal() const;
@@ -59,5 +61,7 @@ private:
 	QPoint relativePosition;
 	QPoint offset;
 	PieceType mPieceType;
+
+	bool mIsDraggingNow = false;
 };
 

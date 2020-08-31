@@ -2,13 +2,15 @@
 
 #include <QPalette>
 
-Cell::Cell(QWidget *parent, QRect geometry, QPoint _relativePosition, CellType _cellType):
+Cell::Cell(QWidget *parent, QPoint absPos, QPoint _relativePosition, CellType _cellType):
 	QPushButton(parent), relativePosition(_relativePosition), cellType(_cellType),
 	color(cellType == CellType::BLACK ? QColor(210, 100, 50) : QColor(240, 200, 140))
 {
-	setGeometry(geometry);
+	move(absPos);
 	setAutoFillBackground(true);
 	setBackgroundColor(color);
+	setMaximumHeight(1000);
+	setText(QString::number(relativePosition.x()) + " " + QString::number(relativePosition.y()));
 }
 
 void Cell::activate(CellActiveType cellActiveType)

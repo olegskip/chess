@@ -17,7 +17,7 @@ PieceType Piece::pieceType() const
 	return mPieceType;
 }
 
-void Piece::move(QPoint relativePosition, int currentMove)
+void Piece::relativeMove(QPoint relativePosition, int currentMove)
 {
 	if(currentMove != -1 && this->getRelativePosition() != relativePosition) {
 		lastMove = currentMove;
@@ -25,7 +25,7 @@ void Piece::move(QPoint relativePosition, int currentMove)
 	}
 	this->relativePosition = relativePosition;
 
-	QPushButton::move(QPoint(relativePosition.x() * size().width(), 7 * height() - relativePosition.y() * size().height()));
+	move(QPoint(relativePosition.x() * size().width(), 7 * height() - relativePosition.y() * size().height()));
 }
 
 QPoint Piece::getRelativePosition() const
@@ -72,22 +72,40 @@ void Piece::transform(PieceType newPieceType)
 	setStyleSheet(QString("QPushButton{border: none; background-color:transparent; border-image: url(%1);}").arg(getImage(pieceType(), pieceOwner)));
 }
 
-void Piece::mousePressEvent(QMouseEvent* event) // override
+void Piece::mousePressEvent(QMouseEvent *event) // override
 {
 	if(event->buttons() & Qt::LeftButton) {
 		offset = QPoint(-size().width() / 2, -size().height() / 2);
-		QPushButton::move(mapToParent(event->pos() + offset));
+//		QPushButton::move(mapToParent(QPoint(event->pos().x() + offset.x(), event->pos().y() + offset.y())));
+		mouseMoveEvent(event);
 	}
+
 	QPushButton::mousePressEvent(event);
 }
 
-void Piece::mouseMoveEvent(QMouseEvent* event) // override
+void Piece::mouseMoveEvent(QMouseEvent *event) // override
 {
 	if(event->buttons() & Qt::LeftButton) {
 		raise();
 		emit moveSignal();
-		QPushButton::move(mapToParent(event->pos() + offset));
+
+		const QPoint curPosWithOffset = mapToParent(event->pos() + offset);
+
+		if(curPosWithOffset.x() < offset.x())
+			QPushButton::move(offset.x(), y());
+		else if(curPosWithOffset.x() > parentWidget()->width() + offset.x())
+			QPushButton::move(parentWidget()->width() + offset.x(), y());
+		else
+			QPushButton::move(curPosWithOffset.x(), y());
+
+		if(curPosWithOffset.y() < offset.y())
+			QPushButton::move(x(), offset.y());
+		else if(curPosWithOffset.y() > parentWidget()->height() + offset.x())
+			QPushButton::move(x(), parentWidget()->height() + offset.y());
+		else
+			QPushButton::move(x(), curPosWithOffset.y());
 	}
+
 	QPushButton::mouseMoveEvent(event);
 }
 

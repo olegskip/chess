@@ -4,7 +4,7 @@
 
 namespace config
 {
-	const int CELL_SIDE_SIZE = 100;
+	const int BOARD_SIDE_SIZE = 8;
 
 	namespace pieces_paths
 	{

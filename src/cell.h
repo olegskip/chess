@@ -22,7 +22,7 @@ class Cell: public QPushButton
 	Q_OBJECT
 
 public:
-	Cell(QWidget *parent, QRect geometry, QPoint _relativePosition, CellType _cellType);
+	Cell(QWidget *parent, QPoint absPos, QPoint _relativePosition, CellType _cellType);
 
 	const QPoint relativePosition;
 	const CellType cellType;
